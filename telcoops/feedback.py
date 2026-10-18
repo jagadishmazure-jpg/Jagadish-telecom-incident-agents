@@ -14,7 +14,7 @@ from .audit import AuditLog
 
 EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
-PHONE_RE = re.compile(r"\b(?:\+?1[-.\s]?)?(?:\(\d{3}\)|\d{3})[-.\s]?\d{3}[-.\s]?\d{4}\b")
+PHONE_RE = re.compile(r"(?<!\w)(?:\+?1[-.\s]?)?(?:\(\d{3}\)\s?|\d{3}[-.\s]?)\d{3}[-.\s]?\d{4}\b")
 
 
 def scrub_pii(text: str) -> tuple[str, int]:

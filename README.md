@@ -7,7 +7,7 @@
 > explanation per group, recommends field techs by skill + proximity + load,
 > grounds procedural answers in SOPs with citations, and gates mass-outage
 > declarations and SLA credits behind human confirmation. Proof:
-> **44 tests green** (regression checks on synthetic data), a deterministic
+> **55 tests green** (regression checks on synthetic data), a deterministic
 > anchor (a 12-alarm LINK-DOWN storm on NE-CORE-01 correlated into one
 > critical group), and a hash-chained audit log whose tamper detection is
 > tested.
@@ -39,8 +39,10 @@ text-to-SQL, SOP RAG, escalation tiers, hash-chained audit). What exists
 *only* here:
 
 - **Alarm-correlation engine** (`telcoops/correlate.py`) — groups raw
-  alarms by element, site, cause-code affinity, and time window, with a
-  per-group explanation. Neither sibling repo has event correlation.
+  alarms by element, site, cause-code affinity (checked in both directions)
+  and time window with union-find, with a per-group explanation. Neither
+  sibling repo has event correlation; cold-chain and retail act on one
+  record at a time.
 - **Dispatch recommender** (`telcoops/dispatch.py`) — skill-filtered,
   proximity- and load-scored tech ranking with explanations.
 - **SLA clocks as first-class data** — restoration targets per severity
@@ -70,7 +72,7 @@ flowchart LR
 | Module | What it does |
 |---|---|
 | `telemetry.py` | Seeded SQLite NOC data (deterministic anchors) |
-| `views.py` | 4 read-only views + SELECT-only gateway (SEC-SELECT-01/02/03) |
+| `views.py` | 5 read-only views + SELECT-only gateway (SEC-SELECT-01/02/03/04; 04 = views only via SQLite authorizer) |
 | `text2sql.py` | 5 intents, one simplified retry, then `EscalationNeeded` |
 | `correlate.py` | **Differentiator:** alarm-correlation engine with explanations |
 | `dispatch.py` | **Differentiator:** skill/proximity/load tech recommender |
@@ -86,7 +88,7 @@ flowchart LR
 
 ```
 $ python -m pytest tests/ -q
-44 passed in 0.16s
+55 passed
 
 $ python -c "from telcoops import demo_helpers; print(demo_helpers.demo_correlation())"
 {'group_count': 6, 'storm_group': 'CG-001', 'storm_alarms': 12, 'storm_severity': 'critical'}
@@ -109,7 +111,8 @@ pip install streamlit && streamlit run demo/app.py   # thin demo UI
 ## Guardrails and security controls
 
 - SELECT-only gateway with cited rule IDs; literals stripped before the
-  write-keyword scan (no false positives on quoted text); 100-row cap.
+  write-keyword scan (no false positives on quoted text); views only
+  (SQLite authorizer, ADR 0001); 100-row cap enforced at fetch time.
 - Mass-outage declarations and SLA-credit approvals require human
   confirmation (`ConfirmationGate`).
 - Feedback free text is PII-scrubbed (email/phone/SSN) before storage;
@@ -119,7 +122,7 @@ pip install streamlit && streamlit run demo/app.py   # thin demo UI
 
 ## Limitations and known failures
 
-- The 44 tests are **regression checks on synthetic data**, not quality
+- The 55 tests are **regression checks on synthetic data**, not quality
   claims about real networks.
 - Correlation uses hand-tuned cause affinity; real networks need affinity
   mined from historical tickets (`docs/implementation-guide.md`).
@@ -127,12 +130,40 @@ pip install streamlit && streamlit run demo/app.py   # thin demo UI
   the deployment step.
 - `LiveFiberFeed` is a stub; the site-distance map is illustrative.
 
+## Standardization review (2026-10-18)
+
+Reviewed against the portfolio standard after the build. Bugs found and fixed, each now pinned by a test:
+
+1. **Correlation depended on arrival order.** `CAUSE_AFFINITY` lists FIBER-CUT -> LINK-DOWN but not the reverse, and `_linked` only looked it up from the earlier alarm. A LINK-DOWN raised 3 minutes before a FIBER-CUT at the same site stayed two incidents; the other order made one. Affinity is now checked both ways (output below shows both orders).
+2. **The correlation engine was capped at 100 open alarms.** It loaded alarms through the planner gateway, whose 100-row cap would silently drop alarms in a large storm, against the "nothing is dropped" claim. Engine reads now go through a new `v_open_alarm_sites` view without the planner cap.
+3. **PII scrubber missed `(555) 123-4567`.** The phone pattern needed a word boundary before `(`; replaced with a lookbehind pattern that also takes a `+1` prefix.
+4. **Gateway had no view allowlist.** It blocked writes but any base table or `sqlite_master` was readable through the planner path, and a caller-supplied `LIMIT 100000` skipped the 100-row cap. New rule `SEC-SELECT-04` is enforced by a SQLite authorizer (`authz.py`, ADR 0001), and rows past 100 are never fetched.
+
+Differentiator on the seeded data (regenerated and checked by CI on every push):
+
+<!-- run: python scripts/show_differentiator.py -->
+```text
+{'group_count': 6, 'storm_group': 'CG-001', 'storm_alarms': 12, 'storm_severity': 'critical'}
+TECH-001 has skill 'fiber-splicing'; 90 km from SITE-WEST (proximity 0.36); current load 20%
+FIBER-CUT then LINK-DOWN: 1 group(s): A1~A2 (same site SITE-NORTH with affinitive causes FIBER-CUT/LINK-DOWN)
+LINK-DOWN then FIBER-CUT: 1 group(s): A1~A2 (same site SITE-NORTH with affinitive causes LINK-DOWN/FIBER-CUT)
+```
+<!-- /run -->
+
+Test count (also checked by CI):
+
+<!-- run: python scripts/count_tests.py -->
+```text
+55 tests collected
+```
+<!-- /run -->
+
 ## Built / Written-not-run / Planned
 
 | Status | Item |
 |---|---|
 | Built | Telemetry, views+gateway, text2sql, correlation engine, dispatch recommender, fiber feed (fake+gap), SOP RAG, orchestrator, escalation+gates, audit, PII-scrubbed feedback, demo, docs |
-| Written-not-run | `.github/workflows/ci.yml` (added at standardization; the GitHub App cannot push workflow files) |
+| Built | CI on every push: ruff, tests, docs drift check, hashed brand check, gitleaks; CodeQL; Dependabot |
 | Planned | Live fiber-feed adapter, historical affinity mining, golden eval set in CI |
 
 ## Knowledge

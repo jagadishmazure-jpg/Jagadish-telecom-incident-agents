@@ -6,7 +6,6 @@ from __future__ import annotations
 import sqlite3
 
 from . import correlate, dispatch, telemetry
-from .audit import AuditLog
 from .orchestrator import _load_alarms, _load_techs  # noqa: F401  (test seam)
 from .views import create_views
 

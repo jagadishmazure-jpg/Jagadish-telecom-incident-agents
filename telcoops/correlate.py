@@ -5,7 +5,8 @@ storm. Two alarms are linked when, within ``window_minutes``:
 
 - they share the same network element, OR
 - they share the same site AND their cause codes are affinitive
-  (see ``CAUSE_AFFINITY``).
+  (see ``CAUSE_AFFINITY``). Affinity is checked in both directions, so the
+  result does not depend on which alarm was raised first.
 
 Connected components become correlation groups. Every group carries a
 transparent explanation: which alarms, why they were linked, and the group's
@@ -45,14 +46,18 @@ class CorrelatedGroup:
         self.alarm_count = len(self.alarm_ids)
 
 
+def _affine(x: str, y: str) -> bool:
+    """Symmetric cause affinity (the table lists each pair from one side)."""
+    return y in CAUSE_AFFINITY.get(x, {x}) or x in CAUSE_AFFINITY.get(y, {y})
+
+
 def _linked(a: dict, b: dict, window_minutes: int) -> str | None:
     """Return the link reason, or None when the alarms are unrelated."""
     if abs(a["raised_min"] - b["raised_min"]) > window_minutes:
         return None
     if a["element_id"] == b["element_id"]:
         return f"same element {a['element_id']}"
-    if a["site_id"] == b["site_id"] and b["cause_code"] in CAUSE_AFFINITY.get(
-            a["cause_code"], {a["cause_code"]}):
+    if a["site_id"] == b["site_id"] and _affine(a["cause_code"], b["cause_code"]):
         return (f"same site {a['site_id']} with affinitive causes "
                 f"{a['cause_code']}/{b['cause_code']}")
     return None
