@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from . import correlate, dispatch, fibersignal, sop_rag, text2sql
 from .audit import AuditLog
 from .escalation import tier_for
-from .views import run_query
+from .views import read_view
 
 
 @dataclass
@@ -25,24 +25,16 @@ class ToolResult:
 
 
 def _load_alarms(conn: sqlite3.Connection) -> list[dict]:
-    cols, rows = run_query(
+    return read_view(
         conn,
-        "SELECT a.alarm_id, a.element_id, e.site_id, a.severity, "
-        "a.cause_code, a.raised_min FROM alarms a "
-        "JOIN network_elements e ON a.element_id = e.element_id "
-        "WHERE a.cleared_min IS NULL")
-    keys = ["alarm_id", "element_id", "site_id", "severity", "cause_code",
-            "raised_min"]
-    return [dict(zip(keys, r)) for r in rows]
+        "SELECT alarm_id, element_id, site_id, severity, cause_code, "
+        "raised_min FROM v_open_alarm_sites")
 
 
 def _load_techs(conn: sqlite3.Connection) -> list[dict]:
-    cols, rows = run_query(
+    return read_view(
         conn, "SELECT tech_id, name, skills, home_site, region, on_shift, "
-              "current_load FROM techs")
-    keys = ["tech_id", "name", "skills", "home_site", "region", "on_shift",
-            "current_load"]
-    return [dict(zip(keys, r)) for r in rows]
+              "current_load FROM v_tech_utilization")
 
 
 class Orchestrator:

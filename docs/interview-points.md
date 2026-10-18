@@ -15,5 +15,5 @@
   human; the agent drafts, never approves.
 - **Determinism.** Seeded telemetry, fixed epochs, sorted outputs — every
   test reproduces exactly, which is why the suite runs in 0.2s.
-- **Honest numbers.** 44 tests are regression checks on synthetic data;
+- **Honest numbers.** 55 tests are regression checks on synthetic data;
   the README says so explicitly.

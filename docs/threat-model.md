@@ -6,7 +6,7 @@
 | **Tampering** — audit log edited to hide a bad dispatch | Hash-chained log; `verify_chain()` detects any edit (tested). |
 | **Repudiation** — "I never approved that outage" | Gate decisions record `decided_by`, timestamp, and reason. |
 | **Information disclosure** — PII in feedback text | Scrubbed before storage; redaction count recorded. Error paths never echo row data. |
-| **Denial of service** — expensive queries | SELECT-only gateway, 100-row LIMIT cap, literals stripped pre-scan. |
+| **Denial of service** — expensive queries | SELECT-only gateway, views only (SQLite authorizer), 100-row fetch cap, literals stripped pre-scan. |
 | **Elevation of privilege** — agent writes to network | No write path exists: views are read-only, gateway rejects DDL/DML. |
 | Prompt injection via alarm text | Alarms are data, never instructions; the planner matches fixed intent patterns, not free-form LLM output. |
 

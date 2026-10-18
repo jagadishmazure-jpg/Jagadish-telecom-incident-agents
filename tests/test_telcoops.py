@@ -1,6 +1,5 @@
 """Tests for telcoops. Deterministic; stdlib + pytest only."""
 
-import sqlite3
 
 import pytest
 
@@ -108,10 +107,8 @@ def test_retry_then_escalate(conn):
 
 def _alarms(conn):
     cols, rows = views.run_query(
-        conn, "SELECT a.alarm_id, a.element_id, e.site_id, a.severity, "
-              "a.cause_code, a.raised_min FROM alarms a "
-              "JOIN network_elements e ON a.element_id=e.element_id "
-              "WHERE a.cleared_min IS NULL")
+        conn, "SELECT a.alarm_id, a.element_id, a.site_id, a.severity, "
+              "a.cause_code, a.raised_min FROM v_open_alarm_sites a")
     keys = ["alarm_id", "element_id", "site_id", "severity", "cause_code",
             "raised_min"]
     return [dict(zip(keys, r)) for r in rows]
@@ -172,7 +169,7 @@ def test_correlation_deterministic(conn):
 def _techs(conn):
     cols, rows = views.run_query(
         conn, "SELECT tech_id, name, skills, home_site, region, on_shift, "
-              "current_load FROM techs")
+              "current_load FROM v_tech_utilization")
     keys = ["tech_id", "name", "skills", "home_site", "region", "on_shift",
             "current_load"]
     return [dict(zip(keys, r)) for r in rows]
@@ -370,3 +367,24 @@ def test_feedback_thumbs_up_ok():
 def test_text2sql_default_intent():
     assert text2sql.detect_intent("blargh nothing matches") == \
         "open_incidents_by_severity"
+
+
+# ---------- review fixes (grokbot-portfolio, 2026-10-18) ----------
+
+def _pair(first, second):
+    base = {"site_id": "SITE-NORTH", "severity": "major"}
+    return [dict(base, alarm_id="A1", raised_min=0, element_id="RTR-1", cause_code=first),
+            dict(base, alarm_id="A2", raised_min=3, element_id="OLT-9", cause_code=second)]
+
+
+def test_affinity_does_not_depend_on_arrival_order():
+    from telcoops.correlate import correlate_alarms
+    assert len(correlate_alarms(_pair("FIBER-CUT", "LINK-DOWN"))) == 1
+    assert len(correlate_alarms(_pair("LINK-DOWN", "FIBER-CUT"))) == 1
+    assert len(correlate_alarms(_pair("LINK-DOWN", "HIGH-CPU"))) == 2
+
+
+def test_scrub_parenthesised_phone():
+    from telcoops.feedback import scrub_pii
+    text, n = scrub_pii("customer (555) 123-4567 called")
+    assert "555" not in text and n == 1
