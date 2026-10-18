@@ -7,7 +7,7 @@
 > explanation per group, recommends field techs by skill + proximity + load,
 > grounds procedural answers in SOPs with citations, and gates mass-outage
 > declarations and SLA credits behind human confirmation. Proof:
-> **55 tests green** (regression checks on synthetic data), a deterministic
+> **71 tests green** (regression checks on synthetic data), a deterministic
 > anchor (a 12-alarm LINK-DOWN storm on NE-CORE-01 correlated into one
 > critical group), and a hash-chained audit log whose tamper detection is
 > tested.
@@ -88,7 +88,7 @@ flowchart LR
 
 ```
 $ python -m pytest tests/ -q
-55 passed
+71 passed
 
 $ python -c "from telcoops import demo_helpers; print(demo_helpers.demo_correlation())"
 {'group_count': 6, 'storm_group': 'CG-001', 'storm_alarms': 12, 'storm_severity': 'critical'}
@@ -122,7 +122,7 @@ pip install streamlit && streamlit run demo/app.py   # thin demo UI
 
 ## Limitations and known failures
 
-- The 55 tests are **regression checks on synthetic data**, not quality
+- The 71 tests are **regression checks on synthetic data**, not quality
   claims about real networks.
 - Correlation uses hand-tuned cause affinity; real networks need affinity
   mined from historical tickets (`docs/implementation-guide.md`).
@@ -154,9 +154,26 @@ Test count (also checked by CI):
 
 <!-- run: python scripts/count_tests.py -->
 ```text
-55 tests collected
+71 tests collected
 ```
 <!-- /run -->
+
+### Authorizer template sync (2026-10-18)
+
+The SQLite authorizer was updated to the shared strict, view-aware version.
+A base-table read is allowed only when SQLite reports it on behalf of one of
+the allowed views (the authorizer's view-name argument). A read with no view
+name is denied. `sqlite_master` is always denied, even if listed, and so is
+`load_extension`. The old version falsely denied a self-join of `v_tech_utilization`; a regression test covers it.
+`tests/test_authorizer_sync.py` drives the authorizer directly, independent
+of the text check. It covers comma joins and comment-obfuscated joins with a
+base table, every view, and view self-joins.
+
+Known residual: a read that uses no columns of a table behind a view is
+allowed, because SQLite reports the unused side of a view self-join the same
+way. So `SELECT count(*) FROM <that table>` or `EXISTS (SELECT 1 FROM ...)`
+can still reveal a row count, but no column data. Any column reference is
+denied.
 
 ## Built / Written-not-run / Planned
 

@@ -30,5 +30,5 @@ unchanged.
 
 ## 6. Evals before autonomy
 Add a golden set of (question, expected intent, expected group) pairs and
-gate CI on it. The 55 tests here are regression checks on synthetic data,
+gate CI on it. The 71 tests here are regression checks on synthetic data,
 not quality claims — say so in your own README too.
