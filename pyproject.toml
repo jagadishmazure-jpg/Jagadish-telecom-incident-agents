@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "telecom-incident-agents"
+version = "0.1.0"
+description = "End-to-end telecom NOC agent: alarm correlation, field-tech dispatch, and governed incident Q&A"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.hatch.build.targets.wheel]
+packages = ["telcoops"]
